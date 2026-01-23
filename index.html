@@ -3,23 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISRO Satellite Tracker</title>
-    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>ISRO Satellite Orbital Tracker</title>
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-image: url('path/to/animated-starfield.gif');
+            background-size: cover;
+        }
+        .footer {
+            position: sticky;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            text-align: center;
+        }
+    </style>
 </head>
-<body>
-    <header>
-        <img src="https://example.com/isro-logo.png" alt="ISRO Logo" />
-        <h1>ISRO Satellite Tracker</h1>
+<body class="bg-gray-100">
+    <header class="flex items-center justify-between p-4">
+        <img src="https://www.isro.gov.in/media_isro/image/index/ISRO_Logo.png" alt="ISRO Logo" class="h-10">
+        <h1 class="text-xl font-bold">ISRO Satellite Orbital Tracker</h1>
     </header>
-    <main>
-        <!-- Implement enhanced orbital live tracker visualization here -->
-        <div id="tracker">
-            <p>Tracking satellites in real-time...</p>
+
+    <main class="p-4">
+        <div id="map" class="h-96 mb-4"></div>
+        <div class="satellite-selector mb-4">
+            <button class="bg-blue-500 text-white rounded py-2 px-4" id="cartosat-btn">CARTOSAT-3</button>
+            <button class="bg-blue-500 text-white rounded py-2 px-4" id="risat-btn">RISAT-2B</button>
+            <button class="bg-blue-500 text-white rounded py-2 px-4" id="resourcesat-btn">RESOURCESAT-2A</button>
+            <button class="bg-blue-500 text-white rounded py-2 px-4" id="insat-btn">INSAT-3DR</button>
         </div>
-        <img src="https://fast-loading-source.com/satellite-image.jpg" alt="Satellite Image" loading="lazy">
+        <div id="telemetry" class="mb-4">
+            <h2 class="font-bold">Live Telemetry Data</h2>
+            <p id="altitude">Altitude: <span id="altitude-value"></span></p>
+            <p id="velocity">Velocity: <span id="velocity-value"></span></p>
+            <p id="latitude">Latitude: <span id="latitude-value"></span></p>
+            <p id="longitude">Longitude: <span id="longitude-value"></span></p>
+        </div>
+        <div id="mission-stats" class="mb-4">
+            <h2 class="font-bold">Mission Stats</h2>
+            <p id="mission-info"></p>
+        </div>
     </main>
-    <footer>
-        <p>© 2026 Amit Kumar</p>
+
+    <footer class="footer">
+        <p>Developed by Amit Kumar</p>
     </footer>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // Leaflet map initialization
+        var map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+        }).addTo(map);
+
+        // N2YO API integration and tracking logic
+        function updateTelemetry() {
+            // Fetch data from N2YO API and update telemetry here
+        }
+
+        setInterval(updateTelemetry, 5000);
+    </script>
 </body>
 </html>
