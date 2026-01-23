@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orbital Command | Interactive Tracking</title>
+    <title>ISRO Orbital Monitor | Real-Time Tracking</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -19,385 +19,378 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/5.0.0/satellite.min.js"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000510; cursor: crosshair; }
-        #canvas-container { width: 100vw; height: 100vh; }
+        body { margin: 0; overflow: hidden; background-color: #020205; font-family: 'Segoe UI', monospace; }
         
-        /* HUD Styling */
-        .hud-panel {
-            background: rgba(10, 20, 40, 0.85);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+        /* Custom Animations */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(2.0); opacity: 0; }
         }
-        
-        .reticle {
+        .ping-ring::before {
+            content: '';
             position: absolute;
-            pointer-events: none;
-            width: 20px;
-            height: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            transition: opacity 0.2s;
-            opacity: 0;
-            z-index: 50;
-            transform: translate(-50%, -50%);
+            top: 0; left: 0; width: 100%; height: 100%;
+            border-radius: 50%;
+            border: 1px solid #f97316; /* Orange */
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
         }
 
-        /* Loading Scanline */
-        .scanline {
-            width: 100%;
-            height: 2px;
-            background: #3b82f6;
-            animation: scan 2s linear infinite;
-            opacity: 0.5;
+        /* Glassmorphism UI */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        @keyframes scan { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+        
+        .isro-gradient {
+            background: linear-gradient(90deg, #FF9933, #FFFFFF, #138808); /* India Flag Colors approx */
+            height: 2px;
+            width: 100%;
+        }
     </style>
 </head>
-<body class="text-blue-100 font-mono antialiased">
+<body class="text-slate-200 antialiased selection:bg-orange-500 selection:text-white">
 
-    <div id="reticle" class="reticle"></div>
-
-    <div id="sat-label" class="absolute hidden pointer-events-none z-50 bg-black/90 border border-blue-500 px-3 py-2 rounded text-xs">
-        <h3 id="lbl-name" class="font-bold text-white text-sm">SAT_NAME</h3>
-        <div class="text-blue-400">ID: <span id="lbl-id">00000</span></div>
-        <div class="text-gray-400">ALT: <span id="lbl-alt">000</span> km</div>
+    <div class="absolute top-0 left-0 p-4 md:p-6 z-20 pointer-events-none flex items-start gap-4">
+        <div class="bg-white/90 p-2 rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.2)] pointer-events-auto">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/b/bd/Indian_Space_Research_Organisation_Logo.svg" 
+                 alt="ISRO Logo" 
+                 class="h-12 w-auto md:h-16">
+        </div>
+        
+        <div class="mt-1">
+            <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-white drop-shadow-md">
+                MISSION<span class="text-orange-500">CONTROL</span>
+            </h1>
+            <div class="flex items-center gap-2 text-xs md:text-sm font-mono text-blue-300">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span>REAL-TIME TELEMETRY</span>
+            </div>
+        </div>
     </div>
 
-    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-6">
-        
-        <div class="flex justify-between items-start pointer-events-auto">
-            <div>
-                <h1 class="text-4xl font-black tracking-tighter text-white drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]">
-                    ORBITAL<span class="text-blue-500">EYE</span>
-                </h1>
-                <div class="flex items-center gap-2 mt-2 text-xs text-blue-300">
-                    <span class="relative flex h-2 w-2">
-                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    <span id="system-status">SYSTEM ONLINE</span>
-                </div>
+    <div id="sat-card" class="absolute top-24 right-4 md:right-8 w-64 md:w-80 glass-panel rounded-xl overflow-hidden shadow-2xl transition-all duration-300 transform translate-x-full opacity-0 z-20 pointer-events-none">
+        <div class="isro-gradient"></div>
+        <div class="p-5">
+            <div class="flex justify-between items-start mb-2">
+                <h2 id="card-name" class="text-xl font-bold text-white truncate">SAT_NAME</h2>
+                <span id="card-type" class="text-[10px] font-bold bg-blue-900 text-blue-200 px-2 py-1 rounded border border-blue-700">LEO</span>
             </div>
             
-            <div class="text-right">
-                <div id="clock" class="text-2xl font-light tabular-nums">00:00:00 UTC</div>
-                <div id="sat-total" class="text-xs text-gray-400 uppercase tracking-widest mt-1">TRACKING 0 OBJECTS</div>
+            <div class="space-y-3 mt-4 text-sm font-mono text-gray-300">
+                <div class="flex justify-between border-b border-white/10 pb-1">
+                    <span>NORAD ID</span>
+                    <span id="card-id" class="text-white">00000</span>
+                </div>
+                <div class="flex justify-between border-b border-white/10 pb-1">
+                    <span>ALTITUDE</span>
+                    <span class="text-orange-400"><span id="card-alt">0</span> km</span>
+                </div>
+                <div class="flex justify-between border-b border-white/10 pb-1">
+                    <span>VELOCITY</span>
+                    <span class="text-white"><span id="card-vel">0</span> km/s</span>
+                </div>
             </div>
-        </div>
-
-        <div class="flex justify-between items-end pointer-events-auto">
-            <div class="hud-panel p-4 rounded-lg max-w-sm">
-                <h2 class="text-xs font-bold text-blue-400 mb-2 border-b border-blue-500/30 pb-1">INSTRUCTIONS</h2>
-                <ul class="text-[10px] space-y-1 text-gray-300">
-                    <li>• LEFT MOUSE to Rotate Earth</li>
-                    <li>• SCROLL to Zoom (Data reveals on hover)</li>
-                    <li>• HOVER over satellites to identify</li>
-                </ul>
+            <div class="mt-4 text-[10px] text-gray-500">
+                Data provided by CelesTrak (Public GP)
             </div>
         </div>
     </div>
 
-    <div id="canvas-container"></div>
+    <div class="absolute bottom-0 w-full p-4 md:p-6 z-20 pointer-events-none flex justify-between items-end">
+        <div class="glass-panel px-4 py-2 rounded-lg pointer-events-auto">
+            <div class="grid grid-cols-2 gap-x-8 gap-y-1 text-xs font-mono">
+                <div class="text-gray-400">TOTAL OBJECTS</div>
+                <div id="stat-total" class="text-white font-bold text-right">0</div>
+                <div class="text-orange-400">ISRO ASSETS</div>
+                <div id="stat-isro" class="text-orange-400 font-bold text-right">0</div>
+            </div>
+        </div>
+
+        <div class="text-right">
+            <div id="clock" class="text-3xl md:text-5xl font-light text-white tracking-widest tabular-nums">00:00:00</div>
+            <div class="text-xs text-blue-400 font-bold tracking-[0.3em] mt-1">UTC TIME STANDARD</div>
+        </div>
+    </div>
+
+    <div id="canvas-container" class="w-full h-full cursor-crosshair"></div>
 
     <script type="module">
         import * as THREE from 'three';
-        import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- HARDCODED ROBUST DATA (Ensures visuals even if API fails) ---
-        // This is a curated list of ~30 bright/popular satellites
-        const BACKUP_DATA = [
+        // --- BACKUP DATA (ISRO HEAVY) ---
+        // Pre-loaded data in case API fails, ensuring the map is never empty.
+        const BACKUP_TLE = [
+            // ISS
             {name:"ISS (ZARYA)",l1:"1 25544U 98067A   23326.71457006  .00014757  00000-0  26656-3 0  9993",l2:"2 25544  51.6416 138.8687 0005234 329.8476 160.0767 15.49841872426354"},
-            {name:"TIANGONG",l1:"1 48274U 21035A   23326.85223071  .00025066  00000-0  16259-3 0  9991",l2:"2 48274  41.4729 349.5608 0007297 325.2679 174.5247 15.59600984144365"},
-            {name:"HUBBLE",l1:"1 20580U 90037B   23326.50403561  .00001556  00000-0  68087-4 0  9997",l2:"2 20580  28.4695 240.2323 0002870 294.0435 186.2750 15.08866380695033"},
-            {name:"NOAA 19",l1:"1 33591U 09005A   23326.90442387  .00000185  00000-0  13511-3 0  9995",l2:"2 33591  99.1085 243.6823 0014169 191.0777 169.0270 14.12935824765636"},
-            {name:"LANDSAT 9",l1:"1 49260U 21088A   23326.88711964  .00000456  00000-0  11456-3 0  9994",l2:"2 49260  98.2239 123.4567 0001234 123.4567 236.5432 14.65432198123456"},
-            {name:"STARLINK-1007",l1:"1 44713U 19074A   23326.25001157  .00000302  00000-0  27572-4 0  9994",l2:"2 44713  53.0538 178.6015 0001546  89.6548 270.4578 15.06392095217985"},
-            {name:"GPS BIIF-10",l1:"1 40730U 15033A   23326.01428549 -.00000057  00000-0  00000-0 0  9998",l2:"2 40730  55.1278 174.1950 0005477 282.8872  76.9922  2.00563456 61271"}
+            // Chandrayaan-2 Orbiter (Approx data for vis)
+            {name:"CHANDRAYAAN-2",l1:"1 44441U 19042A   23001.00000000  .00000000  00000-0  00000-0 0  9999",l2:"2 44441  90.0000   0.0000 0001000   0.0000   0.0000  0.05000000    1"},
+            // Some EOS/GSAT (Example TLEs)
+            {name:"EOS-04 (RISAT-1A)",l1:"1 51656U 22013A   23326.12345678  .00000123  00000-0  12345-4 0  9999",l2:"2 51656  97.9000 120.0000 0001000  90.0000 270.0000 14.80000000 12345"},
+            {name:"GSAT-30",l1:"1 45026U 20005A   23326.55555555  .00000055  00000-0  55555-4 0  9999",l2:"2 45026   0.0500  83.0000 0003000   0.0000   0.0000  1.00270000 1234"},
         ];
 
         // CONFIG
         const CONFIG = {
             earthRadius: 6371,
-            scale: 0.001,
-            maxSatellites: 5000
+            scale: 0.001, // 1 unit = 1000km
+            maxPoints: 4000, // Limit for laptop performance
+            colors: {
+                default: new THREE.Color(0x3b82f6), // Blue
+                isro: new THREE.Color(0xff8800),    // Orange
+                selected: new THREE.Color(0xffffff)  // White
+            }
         };
 
-        // --- SCENE SETUP ---
+        // --- SCENE ---
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(12, 8, 12);
+        scene.fog = new THREE.FogExp2(0x020205, 0.03); // Blend background
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(15, 8, 15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1); // Limit pixel ratio for laptops
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.3;
-        controls.minDistance = 7;
-        controls.maxDistance = 60;
+        controls.autoRotateSpeed = 0.5;
 
-        // --- ASSETS ---
+        // --- EARTH ---
         const texLoader = new THREE.TextureLoader();
-
-        // EARTH GROUP
         const earthGroup = new THREE.Group();
         scene.add(earthGroup);
 
-        // 1. Earth Sphere
         const earthMat = new THREE.MeshPhongMaterial({
             map: texLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'),
             specularMap: texLoader.load('https://unpkg.com/three-globe/example/img/earth-water.png'),
             bumpMap: texLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png'),
             bumpScale: 0.02,
             specular: new THREE.Color(0x333333),
-            shininess: 5
+            shininess: 15
         });
-        const earth = new THREE.Mesh(new THREE.SphereGeometry(6.371, 64, 64), earthMat);
+        const earth = new THREE.Mesh(new THREE.SphereGeometry(6.371, 48, 48), earthMat);
         earthGroup.add(earth);
 
-        // 2. Atmosphere
+        // Atmosphere Glow
         const atmoMat = new THREE.ShaderMaterial({
-            side: THREE.BackSide,
-            transparent: true,
+            side: THREE.BackSide, transparent: true,
             uniforms: {},
-            vertexShader: `
-                varying vec3 vNormal;
-                void main() { vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-            `,
-            fragmentShader: `
-                varying vec3 vNormal;
-                void main() { float intensity = pow(0.7 - dot(vNormal, vec3(0, 0, 1.0)), 4.0); gl_FragColor = vec4(0.2, 0.6, 1.0, 0.6) * intensity; }
-            `
+            vertexShader: `varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+            fragmentShader: `varying vec3 vN;void main(){float i=pow(0.6-dot(vN,vec3(0,0,1)),3.5);gl_FragColor=vec4(0.3,0.6,1.0,0.5)*i;}`
         });
-        const atmo = new THREE.Mesh(new THREE.SphereGeometry(6.5, 64, 64), atmoMat);
+        const atmo = new THREE.Mesh(new THREE.SphereGeometry(6.55, 48, 48), atmoMat);
         scene.add(atmo);
 
-        // 3. Stars
-        const starGeo = new THREE.BufferGeometry();
-        const starPos = [];
-        for(let i=0; i<3000; i++) {
-            starPos.push((Math.random()-0.5)*400, (Math.random()-0.5)*400, (Math.random()-0.5)*400);
-        }
-        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
-        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff, size:0.15, transparent:true, opacity:0.8}));
-        scene.add(stars);
-
-        // 4. Sun Light
-        const sun = new THREE.DirectionalLight(0xffffff, 2);
-        sun.position.set(20, 10, 20);
+        // Lighting
+        const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+        sun.position.set(20, 10, 10);
         scene.add(sun);
-        scene.add(new THREE.AmbientLight(0x111122));
+        scene.add(new THREE.AmbientLight(0x404040));
 
-        // --- SATELLITE GENERATION ---
+        // --- SATELLITE SYSTEM (POINTS) ---
+        // Using THREE.Points is much faster than InstancedMesh for thousands of objects
+        
         let satelliteData = [];
-        let satMesh; // InstancedMesh
-        const dummy = new THREE.Object3D();
-
-        // Create a detailed Satellite Geometry (Merged)
-        function createSatelliteGeometry() {
-            // Body (Cylinder)
-            const bodyGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.2, 8);
-            bodyGeo.rotateX(Math.PI / 2);
+        let geometry = new THREE.BufferGeometry();
+        let points = null;
+        let positions, colors;
+        
+        function initPointSystem(count) {
+            positions = new Float32Array(count * 3);
+            colors = new Float32Array(count * 3);
             
-            // Panels (Box)
-            const panelGeo = new THREE.BoxGeometry(0.6, 0.01, 0.15);
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
             
-            // Merge
-            const geometry = BufferGeometryUtils.mergeGeometries([bodyGeo, panelGeo]);
-            return geometry;
-        }
+            // Custom texture for round soft dots
+            const sprite = new THREE.TextureLoader().load( 'https://threejs.org/examples/textures/sprites/disc.png' );
 
-        const satGeometry = createSatelliteGeometry();
-        // Material: Emissive cyan for visibility + Metallic look
-        const satMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xaaaaaa, 
-            emissive: 0x00ffff,
-            emissiveIntensity: 0.4,
-            roughness: 0.4,
-            metalness: 0.8
-        });
-
-        // Init InstancedMesh
-        satMesh = new THREE.InstancedMesh(satGeometry, satMaterial, CONFIG.maxSatellites);
-        scene.add(satMesh);
-
-        // --- DATA HANDLING ---
-        function parseTLE(tleText) {
-            const lines = tleText.split('\n');
-            const data = [];
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (line.startsWith('1 ') && lines[i+1]) {
-                    const l1 = line;
-                    const l2 = lines[i+1].trim();
-                    // Grab name if previous line exists and isn't a TLE line
-                    let name = "UNKNOWN";
-                    if(i > 0 && !lines[i-1].startsWith('2 ')) {
-                        name = lines[i-1].trim();
-                    }
-                    try {
-                        const rec = satellite.twoline2satrec(l1, l2);
-                        data.push({ rec, name, id: l2.split(' ')[1] });
-                    } catch(e){}
-                }
-            }
-            return data;
-        }
-
-        async function initSatellites() {
-            let sats = [];
-            const statusEl = document.getElementById('system-status');
-            
-            // Load Backup first (Instant)
-            BACKUP_DATA.forEach(d => {
-                const rec = satellite.twoline2satrec(d.l1, d.l2);
-                sats.push({ rec, name: d.name, id: "BACKUP" });
+            const material = new THREE.PointsMaterial({ 
+                size: 0.25, 
+                vertexColors: true, 
+                map: sprite, 
+                alphaTest: 0.5,
+                transparent: true 
             });
 
-            // Try Live Fetch
+            points = new THREE.Points(geometry, material);
+            scene.add(points);
+        }
+
+        // --- DATA HANDLING ---
+        function isISRO(name) {
+            // Check known ISRO naming conventions
+            const n = name.toUpperCase();
+            return n.includes("GSAT") || n.includes("INSAT") || n.includes("RISAT") || n.includes("EOS-") || n.includes("CARTOSAT") || n.includes("CHANDRAYAAN") || n.includes("MANGALYAAN") || n.includes("PSLV");
+        }
+
+        async function loadData() {
+            let parsedSats = [];
+
+            // 1. Fetch
             try {
-                // Using a reliable CORS proxy
-                const res = await fetch('https://corsproxy.io/?' + encodeURIComponent('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'));
-                if(res.ok) {
-                    const text = await res.text();
-                    const liveSats = parseTLE(text);
-                    if(liveSats.length > 0) {
-                        sats = liveSats; // Replace backup with live
-                        statusEl.innerText = "LIVE UPLINK ESTABLISHED";
-                        statusEl.classList.add("text-green-400");
+                // Using corsproxy to get public NORAD data
+                const url = 'https://corsproxy.io/?' + encodeURIComponent('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle');
+                const res = await fetch(url);
+                const text = await res.text();
+                
+                const lines = text.split('\n');
+                for(let i=0; i<lines.length; i++) {
+                    const line = lines[i].trim();
+                    if(line.startsWith('1 ') && lines[i+1]) {
+                        const l1 = line;
+                        const l2 = lines[i+1].trim();
+                        let name = "UNKNOWN";
+                        if(i>0 && !lines[i-1].startsWith('2 ')) name = lines[i-1].trim();
+                        
+                        try {
+                            const rec = satellite.twoline2satrec(l1, l2);
+                            parsedSats.push({rec, name, isIsro: isISRO(name), id: l2.split(' ')[1]});
+                        } catch(e){}
                     }
                 }
             } catch(e) {
-                console.warn("Live fetch failed, using backup.");
-                statusEl.innerText = "OFFLINE DATABASE ACTIVE";
-                statusEl.classList.add("text-yellow-400");
+                console.warn("Using Backup Data");
+                BACKUP_TLE.forEach(d => {
+                    parsedSats.push({
+                        rec: satellite.twoline2satrec(d.l1, d.l2),
+                        name: d.name,
+                        isIsro: true,
+                        id: "BACKUP"
+                    });
+                });
             }
 
-            // Cap at Max
-            satelliteData = sats.slice(0, CONFIG.maxSatellites);
-            document.getElementById('sat-total').innerText = `TRACKING ${satelliteData.length} OBJECTS`;
+            // 2. Sort: Put ISRO satellites first so they render on top/are prioritized
+            parsedSats.sort((a,b) => (b.isIsro ? 1 : 0) - (a.isIsro ? 1 : 0));
+
+            // 3. Cap count for performance
+            satelliteData = parsedSats.slice(0, CONFIG.maxPoints);
+
+            // 4. Update UI Stats
+            document.getElementById('stat-total').innerText = satelliteData.length;
+            document.getElementById('stat-isro').innerText = satelliteData.filter(s => s.isIsro).length;
+
+            // 5. Init System
+            initPointSystem(satelliteData.length);
         }
 
-        initSatellites();
-
-        // --- RAYCASTER (INTERACTION) ---
+        // --- INTERACTION (RAYCASTER) ---
         const raycaster = new THREE.Raycaster();
+        raycaster.params.Points.threshold = 0.3; // Make it easier to click dots
         const mouse = new THREE.Vector2();
-        let hoveredId = null;
+        
+        let hoveredIndex = -1;
 
         window.addEventListener('mousemove', (e) => {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-            
-            // Move Reticle
-            const reticle = document.getElementById('reticle');
-            reticle.style.left = e.clientX + 'px';
-            reticle.style.top = e.clientY + 'px';
         });
 
-        // --- ANIMATION LOOP ---
+        // --- ANIMATION ---
+        const clock = new THREE.Clock();
+        
         function animate() {
             requestAnimationFrame(animate);
-
+            
             const now = new Date();
-            document.getElementById('clock').innerText = now.toISOString().split('.')[0] + " UTC";
-
-            // Rotate Earth
+            document.getElementById('clock').innerText = now.toISOString().split('T')[1].split('.')[0];
+            
+            // 1. Earth Rotation
             const gmst = satellite.gstime(now);
             earthGroup.rotation.y = gmst;
 
-            // Update Satellite Positions
-            let activeCount = 0;
-            const instanceColor = new THREE.Color();
+            // 2. Update Points
+            const posAttr = geometry.attributes.position;
+            const colAttr = geometry.attributes.color;
 
-            // Prepare for Raycasting
-            raycaster.setFromCamera(mouse, camera);
-            // We check intersection against the InstancedMesh
-            // Note: InstancedMesh raycasting is expensive for 5000 objects every frame. 
-            // Optimization: Only check if throttle allows or closest distance.
-            // For this demo, we check every frame but optimize loop.
-
-            const intersection = raycaster.intersectObject(satMesh);
-            let hitIndex = -1;
-            if (intersection.length > 0) {
-                hitIndex = intersection[0].instanceId;
-                document.getElementById('reticle').style.opacity = 1;
-                document.body.style.cursor = 'pointer';
-            } else {
-                document.getElementById('reticle').style.opacity = 0;
-                document.body.style.cursor = 'crosshair';
-            }
-
-            // Update Matrix
-            for (let i = 0; i < satelliteData.length; i++) {
+            for(let i=0; i<satelliteData.length; i++) {
                 const sat = satelliteData[i];
                 const pv = satellite.propagate(sat.rec, now);
                 
-                if (pv.position && !isNaN(pv.position.x)) {
-                    // Coordinate Mapping (ECI to Three)
+                if(pv.position && !isNaN(pv.position.x)) {
+                    // Coordinates: ECI (km) -> Three (units)
+                    // Map ECI X->X, Z->Y, Y->-Z (Right Handed Y-up)
                     const x = pv.position.x * CONFIG.scale;
-                    const y = pv.position.z * CONFIG.scale; // Z -> Y
+                    const y = pv.position.z * CONFIG.scale;
                     const z = -pv.position.y * CONFIG.scale;
 
-                    dummy.position.set(x, y, z);
-                    dummy.lookAt(0, 0, 0); // Face Earth
-                    dummy.updateMatrix();
-                    satMesh.setMatrixAt(i, dummy.matrix);
+                    posAttr.setXYZ(i, x, y, z);
 
-                    // Coloring: Highlight hovered
-                    if (i === hitIndex) {
-                        satMesh.setColorAt(i, instanceColor.setHex(0xff0000)); // RED for hovered
-                        
-                        // Update HUD Data
-                        const hud = document.getElementById('sat-label');
-                        hud.style.display = 'block';
-                        // Project 3D pos to 2D screen
-                        const vec = new THREE.Vector3(x, y, z);
-                        vec.project(camera);
-                        const sx = (vec.x * .5 + .5) * window.innerWidth;
-                        const sy = (-(vec.y * .5) - .5) * window.innerHeight * -1; // flip Y
-                        
-                        hud.style.left = (sx + 15) + 'px';
-                        hud.style.top = (sy - 15) + 'px';
-
-                        document.getElementById('lbl-name').innerText = sat.name;
-                        // Calculate Approx Altitude (Magnitude - Earth Radius)
-                        const r = Math.sqrt(pv.position.x**2 + pv.position.y**2 + pv.position.z**2);
-                        document.getElementById('lbl-alt').innerText = Math.round(r - 6371);
-                        document.getElementById('lbl-id').innerText = sat.id || "N/A";
-
+                    // Color Logic
+                    if(i === hoveredIndex) {
+                        colAttr.setXYZ(i, 1, 1, 1); // White (Selected)
+                    } else if(sat.isIsro) {
+                        colAttr.setXYZ(i, 1, 0.5, 0); // Orange (ISRO)
                     } else {
-                        satMesh.setColorAt(i, instanceColor.setHex(0x00ffff)); // Default Cyan
+                        // Fade distant/debris to dark blue
+                        colAttr.setXYZ(i, 0.2, 0.4, 0.8); 
                     }
-
-                    activeCount++;
                 } else {
                     // Hide invalid
-                    dummy.position.set(0, 0, 0);
-                    dummy.scale.set(0, 0, 0);
-                    dummy.updateMatrix();
-                    satMesh.setMatrixAt(i, dummy.matrix);
+                    posAttr.setXYZ(i, 0, 0, 0);
                 }
             }
+            
+            posAttr.needsUpdate = true;
+            colAttr.needsUpdate = true;
 
-            // Hide label if no hit
-            if (hitIndex === -1) {
-                document.getElementById('sat-label').style.display = 'none';
+            // 3. Raycasting
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(points);
+
+            if (intersects.length > 0) {
+                const index = intersects[0].index;
+                
+                if (hoveredIndex !== index) {
+                    hoveredIndex = index;
+                    document.body.style.cursor = 'pointer';
+                    showCard(satelliteData[index], intersects[0].point);
+                }
+            } else {
+                if (hoveredIndex !== -1) {
+                    hoveredIndex = -1;
+                    document.body.style.cursor = 'crosshair';
+                    hideCard();
+                }
             }
-
-            satMesh.instanceMatrix.needsUpdate = true;
-            if (satMesh.instanceColor) satMesh.instanceColor.needsUpdate = true;
 
             controls.update();
             renderer.render(scene, camera);
         }
 
-        animate();
+        // --- UI FUNCTIONS ---
+        const card = document.getElementById('sat-card');
+        
+        function showCard(sat, point3d) {
+            // Update Text
+            document.getElementById('card-name').innerText = sat.name;
+            document.getElementById('card-id').innerText = sat.id || "N/A";
+            
+            // Calculate Altitude (approx magnitude - earth radius)
+            // Note: point3d is scaled. 
+            const dist = Math.sqrt(point3d.x**2 + point3d.y**2 + point3d.z**2);
+            const alt = Math.round((dist / CONFIG.scale) - CONFIG.earthRadius);
+            
+            document.getElementById('card-alt').innerText = alt;
+            
+            // Show Card
+            card.classList.remove('translate-x-full', 'opacity-0');
+            
+            // Stop rotation to focus
+            controls.autoRotate = false;
+        }
+
+        function hideCard() {
+            card.classList.add('translate-x-full', 'opacity-0');
+            controls.autoRotate = true;
+        }
 
         // Resize
         window.addEventListener('resize', () => {
@@ -405,6 +398,11 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        // Start
+        loadData();
+        animate();
+
     </script>
 </body>
 </html>
