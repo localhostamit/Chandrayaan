@@ -3,44 +3,364 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISRO Satellite Tracker</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 20px;
+    <title>Orbital Command | Real-Time Tracking</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
         }
-        img {
-            max-width: 100%;
-            height: auto;
+    </script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/5.0.0/satellite.min.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        /* Custom scrollbar for the list */
+        .scroller::-webkit-scrollbar { width: 4px; }
+        .scroller::-webkit-scrollbar-thumb { background-color: #4b5563; border-radius: 4px; }
+        
+        /* Loader Animation */
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
-    <header>
-        <img src="https://example.com/isro-logo.png" alt="ISRO Logo" />
-        <h1>ISRO Satellite Tracker</h1>
-    </header>
-    
-    <main>
-        <h2>Real-Time Tracking of Satellites</h2>
-        <div id="satellites">
-            <h3>CARTOSAT-3</h3>
-            <img src="https://via.placeholder.com/400" alt="CARTOSAT-3">
-            <h3>RISAT-2B</h3>
-            <img src="https://via.placeholder.com/400" alt="RISAT-2B">
-            <h3>RESOURCESAT-2A</h3>
-            <img src="https://via.placeholder.com/400" alt="RESOURCESAT-2A">
-            <h3>INSAT-3DR</h3>
-            <img src="https://via.placeholder.com/400" alt="INSAT-3DR">
-        </div>
-        <div id="tracking-info">
-            <!-- Orbital visualization and real-time tracking will be integrated here -->
-        </div>
-    </main>
+<body class="text-white font-mono">
 
-    <footer>
-        <p>Amit Kumar</p>
-    </footer>
+    <div class="absolute top-0 left-0 w-full h-full pointer-events-none z-10 p-6 flex flex-col justify-between">
+        
+        <div class="flex justify-between items-start pointer-events-auto">
+            <div>
+                <h1 class="text-4xl font-bold tracking-tighter text-blue-400 drop-shadow-lg">ORBITAL<span class="text-white">COMMAND</span></h1>
+                <p class="text-xs text-blue-200 mt-1 opacity-70">REAL-TIME PUBLIC SATELLITE TRACKING</p>
+                <div class="mt-4 flex gap-4 text-sm">
+                    <div class="bg-black/50 backdrop-blur-md border border-white/10 px-4 py-2 rounded">
+                        <span class="block text-xs text-gray-400">ACTIVE SATELLITES</span>
+                        <span id="sat-count" class="text-xl font-bold text-green-400">0</span>
+                    </div>
+                    <div class="bg-black/50 backdrop-blur-md border border-white/10 px-4 py-2 rounded">
+                        <span class="block text-xs text-gray-400">FPS</span>
+                        <span id="fps-counter" class="text-xl font-bold text-yellow-400">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-right">
+                <div id="clock-time" class="text-3xl font-light tabular-nums">00:00:00</div>
+                <div id="clock-date" class="text-sm text-gray-400 uppercase">LOADING DATA...</div>
+            </div>
+        </div>
+
+        <div id="loader" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            <h2 class="text-xl font-semibold animate-pulse">Establishing Downlink...</h2>
+            <p class="text-xs text-gray-400 mt-2">Fetching NORAD TLE Data via Proxy</p>
+        </div>
+
+        <div class="pointer-events-auto w-full max-w-md bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-4 self-end hidden" id="status-panel">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-bold text-blue-400">SYSTEM STATUS</span>
+                <span class="flex h-2 w-2 relative">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed">
+                Visualization utilizes SGP4 propagation model. Earth rotation synchronized with GMST.
+                <br><span class="opacity-50">Data source: CelesTrak (Public GP)</span>
+            </p>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- CONFIGURATION ---
+        const EARTH_RADIUS = 6371; // km
+        const SCALE_FACTOR = 0.001; // Scale down for Three.js units (1 unit = 1000km)
+        const R = EARTH_RADIUS * SCALE_FACTOR; 
+        const SAT_SIZE = 0.08;
+        const SAT_COLOR = 0x00ffcc;
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        
+        // Camera
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(15, 8, 15); // Initial view
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = R + 1;
+        controls.maxDistance = 50;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.5;
+
+        // --- ASSETS & MATERIALS ---
+        const textureLoader = new THREE.TextureLoader();
+        
+        // 1. Earth Group (Container for rotation)
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+
+        // 2. Earth Sphere
+        // Using high-quality textures from a reliable source
+        const earthGeo = new THREE.SphereGeometry(R, 64, 64);
+        const earthMat = new THREE.MeshPhongMaterial({
+            map: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'),
+            bumpMap: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png'),
+            bumpScale: 0.05,
+            specularMap: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-water.png'),
+            specular: new THREE.Color('grey'),
+            shininess: 10
+        });
+        const earth = new THREE.Mesh(earthGeo, earthMat);
+        earthGroup.add(earth);
+
+        // 3. Atmosphere Glow (Shader)
+        const atmosphereGeo = new THREE.SphereGeometry(R + 0.1, 64, 64);
+        const atmosphereMat = new THREE.ShaderMaterial({
+            transparent: true,
+            side: THREE.BackSide,
+            uniforms: {},
+            vertexShader: `
+                varying vec3 vNormal;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vNormal;
+                void main() {
+                    float intensity = pow(0.6 - dot(vNormal, vec3(0, 0, 1.0)), 4.0);
+                    gl_FragColor = vec4(0.3, 0.6, 1.0, 1.0) * intensity;
+                }
+            `
+        });
+        const atmosphere = new THREE.Mesh(atmosphereGeo, atmosphereMat);
+        // scene.add(atmosphere); // Optional: adds a halo effect, sometimes obscures geometry if not tweaked
+
+        // 4. Night Lights (Advanced: Using a second sphere slightly larger with additive blending)
+        const lightsGeo = new THREE.SphereGeometry(R + 0.005, 64, 64);
+        const lightsMat = new THREE.MeshBasicMaterial({
+            map: textureLoader.load('https://unpkg.com/three-globe/example/img/earth-night.jpg'),
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0.6
+        });
+        const lightsMesh = new THREE.Mesh(lightsGeo, lightsMat);
+        earthGroup.add(lightsMesh);
+
+        // 5. Stars Background
+        const starGeo = new THREE.BufferGeometry();
+        const starCount = 2000;
+        const starPos = new Float32Array(starCount * 3);
+        for(let i=0; i<starCount*3; i++) {
+            starPos[i] = (Math.random() - 0.5) * 400;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.8 });
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+
+        // 6. Lighting
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        sunLight.position.set(10, 5, 10);
+        scene.add(sunLight);
+        const ambientLight = new THREE.AmbientLight(0x333333); // Soft lighting for shadow side
+        scene.add(ambientLight);
+
+        // --- SATELLITE SYSTEM ---
+        
+        let satelliteData = [];
+        let satMesh; // InstancedMesh
+        const dummy = new THREE.Object3D();
+        const maxSatellites = 10000; // Buffer size
+
+        // Init Instanced Mesh
+        const satGeo = new THREE.BoxGeometry(SAT_SIZE, SAT_SIZE, SAT_SIZE); // Simple cube is fastest
+        const satMat = new THREE.MeshBasicMaterial({ color: SAT_COLOR });
+        satMesh = new THREE.InstancedMesh(satGeo, satMat, maxSatellites);
+        satMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        scene.add(satMesh);
+
+        // Fetch TLE Data
+        // Using AllOrigins proxy to bypass CORS on CelesTrak
+        const TLE_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle');
+
+        async function loadSatellites() {
+            try {
+                const response = await fetch(TLE_URL);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const text = await response.text();
+                
+                // Parse TLEs
+                const lines = text.split('\n');
+                let count = 0;
+                
+                for (let i = 0; i < lines.length; i += 3) {
+                    // TLE Format usually 3 lines (Name, Line1, Line2) or 2 lines. 
+                    // Celestrak GP TLE format often includes the name as line 0.
+                    if (i + 2 >= lines.length) break;
+
+                    const line0 = lines[i].trim();
+                    const line1 = lines[i+1].trim();
+                    const line2 = lines[i+2].trim();
+
+                    if (!line1.startsWith('1') || !line2.startsWith('2')) continue;
+
+                    try {
+                        const satrec = satellite.twoline2satrec(line1, line2);
+                        satelliteData.push({ satrec: satrec, name: line0 });
+                        count++;
+                        if (count >= maxSatellites) break;
+                    } catch (e) {
+                        // Skip bad TLE
+                    }
+                }
+
+                // Update UI
+                document.getElementById('sat-count').innerText = count;
+                document.getElementById('loader').classList.add('hidden');
+                document.getElementById('status-panel').classList.remove('hidden');
+                console.log(`Loaded ${count} satellites.`);
+
+            } catch (err) {
+                console.error("Failed to load TLE data", err);
+                document.querySelector('#loader h2').innerText = "Data Uplink Failed";
+                document.querySelector('#loader p').innerText = "Check console or internet connection.";
+            }
+        }
+
+        loadSatellites();
+
+        // --- ANIMATION LOOP ---
+        
+        const clock = new THREE.Clock();
+        let fpsFrames = 0;
+        let lastTime = 0;
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            
+            // FPS Counter
+            if (time - lastTime >= 1000) {
+                document.getElementById('fps-counter').innerText = fpsFrames;
+                fpsFrames = 0;
+                lastTime = time;
+            }
+            fpsFrames++;
+
+            // Update Time UI
+            const now = new Date();
+            document.getElementById('clock-time').innerText = now.toLocaleTimeString('en-US', {hour12: false});
+            document.getElementById('clock-date').innerText = now.toLocaleDateString();
+
+            // 1. Earth Rotation
+            // We keep Earth fixed in geometric space for textures, but effectively we should rotate
+            // the Earth to match GMST if we were plotting ECI perfectly. 
+            // HOWEVER: satellite.js propagates to ECI. ECI is inertial (fixed stars).
+            // Earth rotates within ECI.
+            // So: We should rotate the Earth mesh based on GMST.
+            
+            const gmst = satellite.gstime(now);
+            earthGroup.rotation.y = gmst; // Rotate earth to match time
+
+            // 2. Update Satellites
+            let activeCount = 0;
+            
+            for (let i = 0; i < satelliteData.length; i++) {
+                const sat = satelliteData[i];
+                
+                // Propagate
+                const positionAndVelocity = satellite.propagate(sat.satrec, now);
+                const positionEci = positionAndVelocity.position;
+
+                if (positionEci) {
+                    // ECI Coordinates (km) -> Three.js Units
+                    // Note: Three.js is Y-up usually, Satellite.js is Z-up (Earth Pole).
+                    // We need to map:
+                    // Sat X -> Three X
+                    // Sat Y -> Three Z (or -Z)
+                    // Sat Z -> Three Y
+                    // AND account for the scale factor.
+                    
+                    // Actually, let's stick to standard math: 
+                    // ECI x,y,z are standard. We just scale them. 
+                    // But we must rotate the SCENE camera or the objects to match visual orientation.
+                    // To keep it simple: Map ECI directly to ThreeJS world space, 
+                    // and ensure Earth is rotated by GMST (which we did above).
+                    // But we need to correct axes. 
+                    // ECI Z is North. ThreeJS Y is usually Up.
+                    
+                    const x = positionEci.x * SCALE_FACTOR;
+                    const y = positionEci.z * SCALE_FACTOR; // Swap Z to Y for Up
+                    const z = -positionEci.y * SCALE_FACTOR; // Right hand rule adjustment?
+
+                    // Let's rely on Earth texture orientation. 
+                    // Standard ThreeJS sphere: Y is up (poles).
+                    // So we map ECI Z -> Three Y.
+                    // ECI X -> Three X.
+                    // ECI Y -> Three -Z (to match right hand system).
+                    
+                    dummy.position.set(x, y, z);
+                    
+                    // Simple rotation for the satellite box to look dynamic
+                    dummy.rotation.set(0, 0, 0); 
+                    dummy.updateMatrix();
+                    satMesh.setMatrixAt(i, dummy.matrix);
+                    activeCount++;
+                } else {
+                    // Satellite currently invalid/decayed, hide it
+                    dummy.position.set(0,0,0);
+                    dummy.scale.set(0,0,0);
+                    dummy.updateMatrix();
+                    satMesh.setMatrixAt(i, dummy.matrix);
+                }
+            }
+            
+            satMesh.instanceMatrix.needsUpdate = true;
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Handle Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start Loop
+        animate(0);
+
+    </script>
 </body>
 </html>
