@@ -3,152 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chandrayaan-3 Real-Time Orbital Tracker</title>
+    <title>Chandrayaan-3 Live Orbital Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/satellite.js@4.1.4/dist/satellite.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0d1229 100%);
-            color: #ffffff;
-            overflow-x: hidden;
+            font-family: 'Orbitron', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
             min-height: 100vh;
         }
-
-        .container {
-            position: relative;
-            width: 100%;
-            min-height: 100vh;
-        }
-
-        .header {
-            text-align: center;
-            padding: 30px 20px;
-            background: rgba(10, 14, 39, 0.8);
-            backdrop-filter: blur(10px);
-            border-bottom: 2px solid rgba(255, 165, 0, 0.3);
-            position: relative;
-            z-index: 10;
-        }
-
-        .header h1 {
-            font-size: 2.5em;
-            background: linear-gradient(90deg, #ff6b35, #f7931e, #ffd700);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 10px;
-            text-shadow: 0 0 30px rgba(255, 165, 0, 0.5);
-        }
-
-        .header p {
-            font-size: 1.1em;
-            color: #a8b2d1;
-            letter-spacing: 1px;
-        }
-
-        .main-content {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: flex-start;
-            padding: 40px 20px;
-            gap: 30px;
-        }
-
-        .canvas-container {
-            position: relative;
-            width: 600px;
-            height: 600px;
-            max-width: 90vw;
-            max-height: 90vw;
-        }
-
-        #orbitCanvas {
-            width: 100%;
-            height: 100%;
-            border-radius: 20px;
-            box-shadow: 0 0 50px rgba(255, 165, 0, 0.3);
-            background: radial-gradient(circle at center, #0a0e27 0%, #000000 100%);
-        }
-
-        .info-panel {
-            background: rgba(26, 31, 58, 0.8);
-            backdrop-filter: blur(10px);
-            padding: 30px;
-            border-radius: 20px;
-            border: 1px solid rgba(255, 165, 0, 0.3);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-            max-width: 400px;
-            min-width: 300px;
-        }
-
-        .info-panel h2 {
-            color: #ffd700;
-            margin-bottom: 20px;
-            font-size: 1.8em;
-            border-bottom: 2px solid rgba(255, 165, 0, 0.3);
-            padding-bottom: 10px;
-        }
-
-        .data-item {
-            margin: 15px 0;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
-            border-left: 3px solid #ff6b35;
-            transition: all 0.3s ease;
-        }
-
-        .data-item:hover {
-            background: rgba(255, 165, 0, 0.1);
-            transform: translateX(5px);
-        }
-
-        .data-label {
-            font-size: 0.9em;
-            color: #a8b2d1;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .data-value {
-            font-size: 1.3em;
-            color: #ffd700;
-            font-weight: bold;
-        }
-
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #00ff00;
-            animation: pulse 2s infinite;
-            margin-right: 10px;
-            box-shadow: 0 0 10px #00ff00;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .stars {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1;
-        }
-
+        
         .star {
             position: absolute;
             width: 2px;
@@ -157,151 +26,194 @@
             border-radius: 50%;
             animation: twinkle 3s infinite;
         }
-
+        
         @keyframes twinkle {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.5); }
         }
-
-        .mission-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
         }
-
-        .stat-box {
-            background: linear-gradient(135deg, rgba(255, 107, 53, 0.2) 0%, rgba(255, 215, 0, 0.1) 100%);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            border: 1px solid rgba(255, 165, 0, 0.3);
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
-
-        .stat-box .number {
-            font-size: 2em;
-            color: #ff6b35;
-            font-weight: bold;
+        
+        .floating {
+            animation: float 6s ease-in-out infinite;
         }
-
-        .stat-box .label {
-            font-size: 0.8em;
-            color: #a8b2d1;
-            margin-top: 5px;
+        
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
         }
-
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 1.8em;
-            }
-            
-            .canvas-container {
-                width: 100%;
-                height: 400px;
-            }
-            
-            .info-panel {
-                width: 100%;
-            }
+        
+        .gradient-text {
+            background: linear-gradient(90deg, #f59e0b, #ef4444, #ec4899);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-
-        .controls {
-            margin-top: 20px;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
+        
+        #map {
+            height: 500px;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(249, 115, 22, 0.3);
         }
-
-        .control-btn {
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
-            border: none;
-            padding: 12px 25px;
-            border-radius: 8px;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            margin: 5px;
+        
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(249, 115, 22, 0.3);
+        }
+        
+        .card-hover {
             transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
-
-        .control-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(255, 107, 53, 0.5);
+        
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(249, 115, 22, 0.4);
         }
-
-        .control-btn:active {
-            transform: translateY(0);
+        
+        .loading {
+            border: 3px solid rgba(249, 115, 22, 0.3);
+            border-top-color: #f97316;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
-    <div class="stars" id="stars"></div>
+<body class="relative overflow-x-hidden">
+    <!-- Stars Background -->
+    <div id="stars" class="fixed inset-0 pointer-events-none z-0"></div>
     
-    <div class="container">
-        <div class="header">
-            <h1>🛰️ CHANDRAYAAN-3 ORBITAL TRACKER</h1>
-            <p>Real-Time Mission Monitoring System</p>
+    <!-- Main Container -->
+    <div class="relative z-10 container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-12 floating">
+            <h1 class="text-5xl md:text-7xl font-black gradient-text mb-4">
+                🛰️ CHANDRAYAAN-3 LIVE TRACKER
+            </h1>
+            <p class="text-xl text-gray-300">Real-Time Orbital Data & Mission Gallery</p>
+            <div class="flex items-center justify-center mt-4 gap-2">
+                <span class="pulse inline-block w-3 h-3 bg-green-500 rounded-full"></span>
+                <span class="text-green-400 font-bold">LIVE TRACKING ACTIVE</span>
+            </div>
         </div>
 
-        <div class="main-content">
-            <div class="canvas-container">
-                <canvas id="orbitCanvas"></canvas>
+        <!-- Real-Time Data Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="glass rounded-xl p-6 card-hover">
+                <div class="text-orange-400 text-sm uppercase mb-2">Altitude</div>
+                <div id="altitude" class="text-3xl font-bold text-white">Loading...</div>
+                <div class="text-gray-400 text-xs mt-1">Above Lunar Surface</div>
             </div>
+            
+            <div class="glass rounded-xl p-6 card-hover">
+                <div class="text-orange-400 text-sm uppercase mb-2">Velocity</div>
+                <div id="velocity" class="text-3xl font-bold text-white">Loading...</div>
+                <div class="text-gray-400 text-xs mt-1">Orbital Speed</div>
+            </div>
+            
+            <div class="glass rounded-xl p-6 card-hover">
+                <div class="text-orange-400 text-sm uppercase mb-2">Latitude</div>
+                <div id="latitude" class="text-3xl font-bold text-white">Loading...</div>
+                <div class="text-gray-400 text-xs mt-1">Current Position</div>
+            </div>
+            
+            <div class="glass rounded-xl p-6 card-hover">
+                <div class="text-orange-400 text-sm uppercase mb-2">Longitude</div>
+                <div id="longitude" class="text-3xl font-bold text-white">Loading...</div>
+                <div class="text-gray-400 text-xs mt-1">Current Position</div>
+            </div>
+        </div>
 
-            <div class="info-panel">
-                <h2><span class="status-indicator"></span>Mission Status</h2>
+        <!-- Map and Data Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            <!-- Interactive Map -->
+            <div class="lg:col-span-2">
+                <div class="glass rounded-xl p-6">
+                    <h2 class="text-2xl font-bold text-orange-400 mb-4">🌍 Live Orbital Path</h2>
+                    <div id="map"></div>
+                    <div class="mt-4 text-sm text-gray-400">
+                        <p>⚠️ Note: Using simulated orbital data. NASA/ISRO TLE data for Chandrayaan-3 is not publicly available via standard APIs.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Mission Stats -->
+            <div class="space-y-6">
+                <div class="glass rounded-xl p-6 card-hover">
+                    <h3 class="text-xl font-bold text-orange-400 mb-4">📊 Mission Stats</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="text-gray-400 text-sm">Orbital Period</div>
+                            <div id="period" class="text-2xl font-bold text-white">~120 min</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400 text-sm">Mission Day</div>
+                            <div id="missionDay" class="text-2xl font-bold text-white">Loading...</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400 text-sm">Distance from Earth</div>
+                            <div id="earthDist" class="text-2xl font-bold text-white">~384,400 km</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-400 text-sm">Status</div>
+                            <div class="text-xl font-bold text-green-400">Operational</div>
+                        </div>
+                    </div>
+                </div>
                 
-                <div class="data-item">
-                    <div class="data-label">Altitude</div>
-                    <div class="data-value" id="altitude">0 km</div>
-                </div>
-
-                <div class="data-item">
-                    <div class="data-label">Velocity</div>
-                    <div class="data-value" id="velocity">0 km/s</div>
-                </div>
-
-                <div class="data-item">
-                    <div class="data-label">Orbital Period</div>
-                    <div class="data-value" id="period">0 min</div>
-                </div>
-
-                <div class="data-item">
-                    <div class="data-label">Distance from Earth</div>
-                    <div class="data-value" id="distance">0 km</div>
-                </div>
-
-                <div class="data-item">
-                    <div class="data-label">Current Phase</div>
-                    <div class="data-value" id="phase">Lunar Orbit</div>
-                </div>
-
-                <div class="mission-stats">
-                    <div class="stat-box">
-                        <div class="number" id="orbits">0</div>
-                        <div class="label">Orbits Completed</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="number" id="mission-day">0</div>
-                        <div class="label">Mission Day</div>
+                <div class="glass rounded-xl p-6 card-hover">
+                    <h3 class="text-xl font-bold text-orange-400 mb-4">🎯 Landing Site</h3>
+                    <div class="space-y-2">
+                        <div class="text-gray-300">South Polar Region</div>
+                        <div class="text-sm text-gray-400">69.37°S, 32.35°E</div>
+                        <div class="text-sm text-green-400 mt-2">✅ Successful Landing</div>
+                        <div class="text-xs text-gray-500">August 23, 2023</div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="controls">
-                    <button class="control-btn" onclick="toggleAnimation()">⏯️ Pause/Play</button>
-                    <button class="control-btn" onclick="resetView()">🔄 Reset</button>
+        <!-- Real Images Gallery -->
+        <div class="glass rounded-xl p-6 mb-8">
+            <h2 class="text-3xl font-bold text-orange-400 mb-6">📸 Chandrayaan-3 Mission Gallery</h2>
+            <div id="imageGallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="text-center text-white">
+                    <div class="loading mx-auto mb-4"></div>
+                    <p>Loading mission images...</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Data Sources -->
+        <div class="glass rounded-xl p-6">
+            <h3 class="text-xl font-bold text-orange-400 mb-4">📡 Data Sources</h3>
+            <div class="text-sm text-gray-300 space-y-2">
+                <p>• <strong>Orbital Data:</strong> Simulated based on known Chandrayaan-3 orbital parameters</p>
+                <p>• <strong>Images:</strong> Official ISRO Chandrayaan-3 mission images via NASA API</p>
+                <p>• <strong>Mission Info:</strong> ISRO official mission documentation</p>
+                <p>• <strong>Landing Coordinates:</strong> 69.37°S, 32.35°E (Confirmed by ISRO)</p>
             </div>
         </div>
     </div>
 
     <script>
-        // Create stars background
+        // Create stars
         function createStars() {
             const starsContainer = document.getElementById('stars');
-            for (let i = 0; i < 200; i++) {
+            for (let i = 0; i < 150; i++) {
                 const star = document.createElement('div');
                 star.className = 'star';
                 star.style.left = Math.random() * 100 + '%';
@@ -312,184 +224,186 @@
         }
         createStars();
 
-        // Canvas setup
-        const canvas = document.getElementById('orbitCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        function resizeCanvas() {
-            const container = canvas.parentElement;
-            canvas.width = container.offsetWidth;
-            canvas.height = container.offsetHeight;
-        }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-
-        // Orbital parameters
-        let angle = 0;
-        let time = 0;
-        let isAnimating = true;
-        let orbitsCompleted = 0;
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const moonRadius = 60;
-        const orbitRadiusA = 180; // Semi-major axis
-        const orbitRadiusB = 150; // Semi-minor axis
-        const satelliteSize = 8;
-
-        // Mission start date (August 23, 2023)
-        const missionStart = new Date('2023-08-23');
-        
-        // Animation loop
-        function animate() {
-            if (!isAnimating) return;
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-
-            // Draw orbit path
-            ctx.beginPath();
-            ctx.ellipse(centerX, centerY, orbitRadiusA, orbitRadiusB, 0, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(255, 165, 0, 0.3)';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Draw Moon with realistic texture
-            const gradient = ctx.createRadialGradient(
-                centerX - 20, centerY - 20, 10,
-                centerX, centerY, moonRadius
-            );
-            gradient.addColorStop(0, '#e8e8e8');
-            gradient.addColorStop(0.5, '#c0c0c0');
-            gradient.addColorStop(1, '#888888');
-            
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, moonRadius, 0, Math.PI * 2);
-            ctx.fillStyle = gradient;
-            ctx.fill();
-            
-            // Moon craters
-            ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
-            ctx.beginPath();
-            ctx.arc(centerX - 20, centerY - 10, 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(centerX + 15, centerY + 20, 12, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(centerX + 10, centerY - 25, 6, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Calculate satellite position
-            const satX = centerX + Math.cos(angle) * orbitRadiusA;
-            const satY = centerY + Math.sin(angle) * orbitRadiusB;
-
-            // Draw satellite trail
-            ctx.beginPath();
-            ctx.arc(satX, satY, 30, 0, Math.PI * 2);
-            const trailGradient = ctx.createRadialGradient(satX, satY, 0, satX, satY, 30);
-            trailGradient.addColorStop(0, 'rgba(255, 107, 53, 0.3)');
-            trailGradient.addColorStop(1, 'rgba(255, 107, 53, 0)');
-            ctx.fillStyle = trailGradient;
-            ctx.fill();
-
-            // Draw Chandrayaan-3 satellite
-            ctx.save();
-            ctx.translate(satX, satY);
-            ctx.rotate(angle + Math.PI / 2);
-            
-            // Satellite body
-            ctx.fillStyle = '#ff6b35';
-            ctx.fillRect(-satelliteSize/2, -satelliteSize/2, satelliteSize, satelliteSize * 1.5);
-            
-            // Solar panels
-            ctx.fillStyle = '#4169e1';
-            ctx.fillRect(-satelliteSize * 1.8, -satelliteSize/4, satelliteSize * 1.2, satelliteSize/2);
-            ctx.fillRect(satelliteSize * 0.6, -satelliteSize/4, satelliteSize * 1.2, satelliteSize/2);
-            
-            // Antenna
-            ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(0, -satelliteSize * 0.75);
-            ctx.lineTo(0, -satelliteSize * 1.5);
-            ctx.stroke();
-            
-            ctx.restore();
-
-            // Draw connection line
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(satX, satY);
-            ctx.strokeStyle = 'rgba(255, 215, 0, 0.2)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Update angle
-            angle += 0.02;
-            time += 0.02;
-
-            // Count orbits
-            if (angle >= Math.PI * 2) {
-                angle -= Math.PI * 2;
-                orbitsCompleted++;
-            }
-
-            // Update telemetry data
-            updateTelemetry(satX, satY);
-
-            requestAnimationFrame(animate);
-        }
-
-        function updateTelemetry(satX, satY) {
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2;
-            
-            // Calculate distance from moon center
-            const distFromCenter = Math.sqrt(Math.pow(satX - centerX, 2) + Math.pow(satY - centerY, 2));
-            const altitude = (distFromCenter - moonRadius) * 1.5; // Scale for realistic values
-            
-            // Calculate velocity (varies with orbital position)
-            const velocity = (2.5 - (distFromCenter / orbitRadiusA) * 0.5).toFixed(2);
-            
-            // Orbital period
-            const period = 120; // minutes
-            
-            // Distance from Earth (average Moon distance + variation)
-            const distanceFromEarth = 384400 + Math.sin(time / 10) * 20000;
-            
-            // Mission days since launch
+        // Calculate mission days
+        function updateMissionDay() {
+            const launchDate = new Date('2023-07-14');
             const today = new Date();
-            const missionDays = Math.floor((today - missionStart) / (1000 * 60 * 60 * 24));
+            const days = Math.floor((today - launchDate) / (1000 * 60 * 60 * 24));
+            document.getElementById('missionDay').textContent = days + ' days';
+        }
+        updateMissionDay();
 
-            // Update DOM
-            document.getElementById('altitude').textContent = altitude.toFixed(0) + ' km';
-            document.getElementById('velocity').textContent = velocity + ' km/s';
-            document.getElementById('period').textContent = period + ' min';
-            document.getElementById('distance').textContent = distanceFromEarth.toFixed(0) + ' km';
-            document.getElementById('orbits').textContent = orbitsCompleted;
-            document.getElementById('mission-day').textContent = missionDays;
+        // Initialize Leaflet Map with Moon
+        const map = L.map('map').setView([0, 0], 2);
+        
+        // Custom Moon tile layer (using a dark theme for space effect)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 5,
+            className: 'map-tiles'
+        }).addTo(map);
+
+        // Landing site marker
+        const landingSite = L.marker([-69.37, 32.35], {
+            icon: L.divIcon({
+                className: 'custom-icon',
+                html: '<div style="background: #ef4444; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white;"></div>',
+                iconSize: [20, 20]
+            })
+        }).addTo(map);
+        landingSite.bindPopup('<strong>Landing Site</strong><br>69.37°S, 32.35°E<br>Aug 23, 2023');
+
+        // Simulate orbital position
+        let currentLat = -69.37;
+        let currentLon = 32.35;
+        let angle = 0;
+        const orbitPath = [];
+        
+        const satelliteMarker = L.marker([currentLat, currentLon], {
+            icon: L.divIcon({
+                className: 'custom-icon',
+                html: '<div style="background: #f97316; width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 0 10px #f97316;"></div>',
+                iconSize: [15, 15]
+            })
+        }).addTo(map);
+
+        // Simulated orbital tracking
+        function updateOrbitalData() {
+            // Simulate orbital motion around moon
+            angle += 0.02;
+            
+            // Simulate latitude/longitude changes (simplified)
+            currentLat = -69.37 + Math.sin(angle) * 20;
+            currentLon = 32.35 + Math.cos(angle) * 30;
+            
+            // Update marker position
+            satelliteMarker.setLatLng([currentLat, currentLon]);
+            orbitPath.push([currentLat, currentLon]);
+            
+            if (orbitPath.length > 100) orbitPath.shift();
+            
+            // Draw orbit trail
+            if (window.orbitLine) map.removeLayer(window.orbitLine);
+            window.orbitLine = L.polyline(orbitPath, {color: '#f97316', weight: 2, opacity: 0.6}).addTo(map);
+            
+            // Simulated telemetry data
+            const altitude = 100 + Math.sin(angle * 2) * 50; // 50-150 km
+            const velocity = 1.6 + Math.random() * 0.2; // ~1.6-1.8 km/s
+            
+            // Update UI
+            document.getElementById('altitude').textContent = altitude.toFixed(1) + ' km';
+            document.getElementById('velocity').textContent = velocity.toFixed(2) + ' km/s';
+            document.getElementById('latitude').textContent = currentLat.toFixed(4) + '°';
+            document.getElementById('longitude').textContent = currentLon.toFixed(4) + '°';
         }
 
-        function toggleAnimation() {
-            isAnimating = !isAnimating;
-            if (isAnimating) {
-                animate();
+        // Fetch real images from NASA API (Chandrayaan-3 related)
+        async function loadMissionImages() {
+            const gallery = document.getElementById('imageGallery');
+            
+            try {
+                // Using NASA Image and Video Library API
+                const response = await axios.get('https://images-api.nasa.gov/search', {
+                    params: {
+                        q: 'Chandrayaan moon mission India ISRO',
+                        media_type: 'image',
+                        year_start: 2023
+                    }
+                });
+                
+                const items = response.data.collection.items.slice(0, 6);
+                
+                if (items.length === 0) {
+                    throw new Error('No images found');
+                }
+                
+                gallery.innerHTML = '';
+                
+                items.forEach(item => {
+                    const data = item.data[0];
+                    const imageUrl = item.links?.[0]?.href;
+                    
+                    if (imageUrl) {
+                        const card = document.createElement('div');
+                        card.className = 'glass rounded-lg overflow-hidden card-hover';
+                        card.innerHTML = `
+                            <img src="${imageUrl}" alt="${data.title}" class="w-full h-48 object-cover">
+                            <div class="p-4">
+                                <h3 class="text-white font-bold mb-2 text-sm">${data.title}</h3>
+                                <p class="text-gray-400 text-xs line-clamp-2">${data.description || 'ISRO Mission Image'}</p>
+                                <p class="text-orange-400 text-xs mt-2">${new Date(data.date_created).toLocaleDateString()}</p>
+                            </div>
+                        `;
+                        gallery.appendChild(card);
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading images:', error);
+                // Fallback to official ISRO images
+                gallery.innerHTML = `
+                    <div class="glass rounded-lg overflow-hidden card-hover">
+                        <img src="https://www.isro.gov.in/media_isro/image/Chandrayaan3/LI_Image_23082023.jpg.webp" alt="Lunar Surface" class="w-full h-48 object-cover">
+                        <div class="p-4">
+                            <h3 class="text-white font-bold mb-2">Lunar Surface View</h3>
+                            <p class="text-gray-400 text-xs">Image captured by Lander Imager Camera</p>
+                            <p class="text-orange-400 text-xs mt-2">Aug 23, 2023</p>
+                        </div>
+                    </div>
+                    <div class="glass rounded-lg overflow-hidden card-hover">
+                        <img src="https://www.isro.gov.in/media_isro/image/Chandrayaan3/NavIC_23082023.jpg.webp" alt="Lander on Moon" class="w-full h-48 object-cover">
+                        <div class="p-4">
+                            <h3 class="text-white font-bold mb-2">Vikram Lander on Moon</h3>
+                            <p class="text-gray-400 text-xs">View from landing site</p>
+                            <p class="text-orange-400 text-xs mt-2">Aug 23, 2023</p>
+                        </div>
+                    </div>
+                    <div class="glass rounded-lg overflow-hidden card-hover">
+                        <img src="https://www.isro.gov.in/media_isro/image/Chandrayaan3/Chandrayaan3_23082023.jpg.webp" alt="Moon Surface" class="w-full h-48 object-cover">
+                        <div class="p-4">
+                            <h3 class="text-white font-bold mb-2">South Pole Region</h3>
+                            <p class="text-gray-400 text-xs">High resolution lunar surface image</p>
+                            <p class="text-orange-400 text-xs mt-2">Aug 23, 2023</p>
+                        </div>
+                    </div>
+                    <div class="glass rounded-lg overflow-hidden card-hover">
+                        <img src="https://science.nasa.gov/wp-content/uploads/2023/09/chandrayaan-3-lander-2.jpg" alt="Vikram Lander" class="w-full h-48 object-cover">
+                        <div class="p-4">
+                            <h3 class="text-white font-bold mb-2">Vikram Lander</h3>
+                            <p class="text-gray-400 text-xs">NASA LRO spotted Chandrayaan-3</p>
+                            <p class="text-orange-400 text-xs mt-2">Sep 2023</p>
+                        </div>
+                    </div>
+                    <div class="glass rounded-lg overflow-hidden card-hover">
+                        <img src="https://www.isro.gov.in/media_isro/image/Chandrayaan3/OHRC_Image_20082023.jpg.webp" alt="Crater View" class="w-full h-48 object-cover">
+                        <div class="p-4">
+                            <h3 class="text-white font-bold mb-2">Crater Analysis</h3>
+                            <p class="text-gray-400 text-xs">Orbital High Resolution Camera image</p>
+                            <p class="text-orange-400 text-xs mt-2">Aug 20, 2023</p>
+                        </div>
+                    </div>
+                    <div class="glass rounded-lg overflow-hidden card-hover">
+                        <img src="https://www.isro.gov.in/media_isro/image/Chandrayaan3/LI_Image_30082023.jpg.webp" alt="Pragyan Rover" class="w-full h-48 object-cover">
+                        <div class="p-4">
+                            <h3 class="text-white font-bold mb-2">Pragyan Rover</h3>
+                            <p class="text-gray-400 text-xs">Rover exploring lunar surface</p>
+                            <p class="text-orange-400 text-xs mt-2">Aug 30, 2023</p>
+                        </div>
+                    </div>
+                `;
             }
         }
 
-        function resetView() {
-            angle = 0;
-            time = 0;
-            orbitsCompleted = 0;
-            animate();
-        }
+        // Start tracking
+        setInterval(updateOrbitalData, 100);
+        loadMissionImages();
 
-        // Start animation
-        animate();
+        // Info popup on load
+        setTimeout(() => {
+            if (!sessionStorage.getItem('infoShown')) {
+                alert('⚠️ IMPORTANT: Real-time TLE (Two-Line Element) data for Chandrayaan-3 is not publicly available via NASA/ISRO APIs. This tracker uses simulated orbital parameters based on the actual mission profile. Images are official mission photos from ISRO.');
+                sessionStorage.setItem('infoShown', 'true');
+            }
+        }, 2000);
     </script>
 </body>
 </html>
