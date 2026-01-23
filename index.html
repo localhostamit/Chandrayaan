@@ -3,69 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <title>ISRO Satellite Orbital Tracker</title>
+    <title>ISRO Satellite Tracker</title>
     <style>
         body {
-            font-family: 'Space Grotesk', sans-serif;
-            background-image: url('path/to/animated-starfield.gif');
-            background-size: cover;
-        }
-        .footer {
-            position: sticky;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px;
+            font-family: Arial, sans-serif;
             text-align: center;
+            padding: 20px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
         }
     </style>
 </head>
-<body class="bg-gray-100">
-    <header class="flex items-center justify-between p-4">
-        <img src="https://www.isro.gov.in/media_isro/image/index/ISRO_Logo.png" alt="ISRO Logo" class="h-10">
-        <h1 class="text-xl font-bold">ISRO Satellite Orbital Tracker</h1>
+<body>
+    <header>
+        <img src="https://example.com/isro-logo.png" alt="ISRO Logo" />
+        <h1>ISRO Satellite Tracker</h1>
     </header>
-
-    <main class="p-4">
-        <div id="map" class="h-96 mb-4"></div>
-        <div class="satellite-selector mb-4">
-            <button class="bg-blue-500 text-white rounded py-2 px-4" id="cartosat-btn">CARTOSAT-3</button>
-            <button class="bg-blue-500 text-white rounded py-2 px-4" id="risat-btn">RISAT-2B</button>
-            <button class="bg-blue-500 text-white rounded py-2 px-4" id="resourcesat-btn">RESOURCESAT-2A</button>
-            <button class="bg-blue-500 text-white rounded py-2 px-4" id="insat-btn">INSAT-3DR</button>
+    
+    <main>
+        <h2>Real-Time Tracking of Satellites</h2>
+        <div id="satellites">
+            <h3>CARTOSAT-3</h3>
+            <img src="https://via.placeholder.com/400" alt="CARTOSAT-3">
+            <h3>RISAT-2B</h3>
+            <img src="https://via.placeholder.com/400" alt="RISAT-2B">
+            <h3>RESOURCESAT-2A</h3>
+            <img src="https://via.placeholder.com/400" alt="RESOURCESAT-2A">
+            <h3>INSAT-3DR</h3>
+            <img src="https://via.placeholder.com/400" alt="INSAT-3DR">
         </div>
-        <div id="telemetry" class="mb-4">
-            <h2 class="font-bold">Live Telemetry Data</h2>
-            <p id="altitude">Altitude: <span id="altitude-value"></span></p>
-            <p id="velocity">Velocity: <span id="velocity-value"></span></p>
-            <p id="latitude">Latitude: <span id="latitude-value"></span></p>
-            <p id="longitude">Longitude: <span id="longitude-value"></span></p>
-        </div>
-        <div id="mission-stats" class="mb-4">
-            <h2 class="font-bold">Mission Stats</h2>
-            <p id="mission-info"></p>
+        <div id="tracking-info">
+            <!-- Orbital visualization and real-time tracking will be integrated here -->
         </div>
     </main>
 
-    <footer class="footer">
-        <p>Developed by Amit Kumar</p>
+    <footer>
+        <p>Amit Kumar</p>
     </footer>
-
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script>
-        // Leaflet map initialization
-        var map = L.map('map').setView([0, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-        }).addTo(map);
-
-        // N2YO API integration and tracking logic
-        function updateTelemetry() {
-            // Fetch data from N2YO API and update telemetry here
-        }
-
-        setInterval(updateTelemetry, 5000);
-    </script>
 </body>
 </html>
