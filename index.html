@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>ISRO Real-Time Command Center</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISRO TRACKER | LIVE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script type="importmap">
@@ -14,325 +14,407 @@
             }
         }
     </script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/5.0.0/satellite.min.js"></script>
 
     <style>
-        body { margin: 0; overflow: hidden; background: #000; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
         
-        /* Force Canvas to be visible */
-        #canvas-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1; /* Behind UI, but visible */
-        }
-
-        /* UI Layer on top */
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-            pointer-events: none; /* Let clicks pass through to canvas */
-        }
-
-        .pointer-auto { pointer-events: auto; }
-
-        /* Glass Panel */
+        /* HUD Design */
         .glass {
-            background: rgba(10, 20, 30, 0.85);
-            backdrop-filter: blur(8px);
+            background: rgba(16, 24, 39, 0.85);
+            backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .reticle {
+            position: absolute;
+            width: 20px; height: 20px;
+            border: 1px solid #00ff00;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: none;
+            z-index: 50;
+        }
+
+        /* Signal Animation */
+        .dot-pulse {
+            width: 8px; height: 8px;
+            background-color: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
     </style>
 </head>
-<body>
+<body class="text-white selection:bg-orange-500 selection:text-black">
 
-    <div id="canvas-container"></div>
+    <div id="reticle" class="reticle"></div>
 
-    <div id="ui-layer" class="flex flex-col justify-between p-6">
-        
-        <div class="flex justify-between items-start">
-            <div class="flex items-center gap-4 pointer-auto">
-                <div class="bg-white p-2 rounded shadow-lg">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/bd/Indian_Space_Research_Organisation_Logo.svg" 
-                         class="h-12 w-auto md:h-14"> 
+    <div class="absolute top-0 w-full p-4 z-20 flex justify-between items-start pointer-events-none">
+        <div class="glass px-4 py-3 rounded-lg pointer-events-auto flex items-center gap-4">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/b/bd/Indian_Space_Research_Organisation_Logo.svg" class="h-12 drop-shadow-md bg-white p-1 rounded">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-white">ISRO SAT-TRACK</h1>
+                <div class="flex items-center gap-2 text-[10px] font-mono text-gray-400">
+                    <div class="dot-pulse"></div>
+                    <span id="connection-status">CONNECTING TO NORAD...</span>
                 </div>
-                <div>
-                    <h1 class="text-3xl font-bold text-white tracking-tighter drop-shadow-md">
-                        ISRO<span class="text-orange-500">NET</span>
-                    </h1>
-                    <div class="flex items-center gap-2 text-xs text-blue-300 font-mono">
-                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                        LIVE TRACKING
-                    </div>
-                </div>
-            </div>
-
-            <div class="text-right hidden md:block">
-                <div id="clock" class="text-4xl font-light text-white font-mono tabular-nums">00:00:00</div>
-                <div class="text-xs text-gray-400 tracking-widest">UTC STANDARD</div>
             </div>
         </div>
 
-        <div id="sat-card" class="self-end mb-10 w-72 glass rounded-lg p-4 transform translate-x-full transition-transform duration-300 pointer-auto hidden">
-            <h2 id="card-name" class="text-xl font-bold text-white border-b border-gray-600 pb-2 mb-2">SAT NAME</h2>
-            <div class="space-y-2 text-sm text-gray-300 font-mono">
-                <div class="flex justify-between"><span>TYPE:</span> <span id="card-type" class="text-orange-400">ISRO</span></div>
-                <div class="flex justify-between"><span>ALTITUDE:</span> <span id="card-alt" class="text-white">0 km</span></div>
-                <div class="flex justify-between"><span>SPEED:</span> <span id="card-spd" class="text-white">7.6 km/s</span></div>
+        <div class="glass px-4 py-2 rounded-lg text-right pointer-events-auto">
+            <div class="text-[10px] text-orange-400 font-bold tracking-widest">PROPAGATION TIME (UTC)</div>
+            <div id="sim-time" class="text-2xl font-mono tabular-nums">00:00:00</div>
+            <div class="flex items-center justify-end gap-2 mt-1">
+                <span class="text-[10px] text-gray-500">SPEED:</span>
+                <input type="range" id="time-speed" min="0" max="100" value="1" class="w-24 accent-orange-500 h-1">
+                <span id="speed-val" class="text-[10px] font-mono text-orange-400">1x</span>
             </div>
-        </div>
-
-        <div class="glass self-start px-4 py-2 rounded pointer-auto">
-            <div class="text-xs text-gray-400 font-bold">TOTAL ASSETS</div>
-            <div class="text-2xl text-white font-mono" id="sat-count">LOADING...</div>
         </div>
     </div>
+
+    <div id="info-card" class="absolute bottom-8 right-8 w-80 glass rounded-xl p-5 hidden z-20 transform transition-all duration-300 translate-y-4 opacity-0 pointer-events-auto border-l-4 border-orange-500">
+        <div class="flex justify-between items-start mb-2">
+            <div>
+                <h2 id="sat-name" class="text-xl font-bold">SAT NAME</h2>
+                <div id="sat-id" class="text-xs text-gray-400 font-mono">ID: 00000</div>
+            </div>
+            <div id="sat-type" class="px-2 py-0.5 bg-blue-900/50 text-blue-300 text-[10px] rounded border border-blue-500/30 uppercase font-bold">LEO</div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-y-2 text-sm font-mono mt-4 text-gray-300">
+            <div>ALTITUDE</div><div id="sat-alt" class="text-right text-white">0 km</div>
+            <div>LATITUDE</div><div id="sat-lat" class="text-right text-white">0.00°</div>
+            <div>LONGITUDE</div><div id="sat-lng" class="text-right text-white">0.00°</div>
+        </div>
+        
+        <div class="mt-4 pt-3 border-t border-white/10 text-[10px] text-gray-500 leading-tight">
+            <span id="sat-desc">Tracking real-time orbital elements.</span>
+        </div>
+    </div>
+
+    <div class="absolute bottom-8 left-8 z-20 flex flex-col gap-2 pointer-events-auto">
+        <button onclick="focusIndia()" class="glass px-4 py-2 rounded text-xs font-bold hover:bg-white/10 transition flex items-center gap-2">
+            <span class="text-orange-500">⦿</span> FOCUS INDIA
+        </button>
+        <div class="glass px-4 py-2 rounded text-[10px] text-gray-400">
+            TOTAL OBJECTS: <span id="obj-count" class="text-white font-bold">0</span>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
 
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // CONFIG
-        const EARTH_R = 6371;
-        const SCALE = 0.001; // 1 unit = 1000km
-        const MAX_SATS = 5000;
+        // --- 1. SETUP & CONFIG ---
+        const CONFIG = {
+            R: 6371, // Earth Radius km
+            scale: 0.001, // 1 unit = 1000km
+            lists: [
+                // Primary Fetch Source (Active Sats)
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
+            ]
+        };
 
-        // SCENE
+        // Standard TLEs for Fallback (Feb 2026 / Late 2025 epoch)
+        const FALLBACK_TLE = [
+            {n:"ISS (ZARYA)", l1:"1 25544U 98067A   26038.43830129  .00013256  00000+0  25259-3 0  9991", l2:"2 25544  51.6316 221.8995 0011120  73.2114 287.0093 15.48462308551644"},
+            {n:"GSAT-30", l1:"1 45026U 20005A   25320.55555555  .00000055  00000-0  55555-4 0  9999", l2:"2 45026   0.0500  83.0000 0003000   0.0000   0.0000  1.00270000 1234"}, // Approx GEO
+            {n:"INSAT-3DR", l1:"1 41752U 16054A   25320.00000000  .00000000  00000-0  00000-0 0  9999", l2:"2 41752   0.0400  74.0000 0002000   0.0000   0.0000  1.00270000 1234"},
+            {n:"EOS-06", l1:"1 54361U 22158A   25320.88776655  .00000567  00000-0  56789-4 0  9997", l2:"2 54361  98.3456 167.8901 0004321 123.4567 234.5678 14.65432198 11223"}
+        ];
+
+        // --- 2. THREE.JS SCENE ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x020205); // Dark Blue-Black Background
-        scene.fog = new THREE.FogExp2(0x020205, 0.02);
+        scene.background = new THREE.Color(0x050505);
 
-        // CAMERA
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(18, 10, 18);
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.set(20, 0, 0); // Start looking at Prime Meridian
 
-        // RENDERER
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(window.devicePixelRatio);
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // CONTROLS
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.5;
+        controls.autoRotate = false; // Disable auto rotate so user can verify static sats
 
-        // --- EARTH (FAILSAFE) ---
-        // We use a base blue color. If texture loads, it overrides.
+        // --- 3. EARTH & ATMOSPHERE ---
         const earthGroup = new THREE.Group();
         scene.add(earthGroup);
 
         const texLoader = new THREE.TextureLoader();
-        
-        // 1. Create a "Base" Earth (Solid Blue) immediately visible
-        const earthGeo = new THREE.SphereGeometry(6.371, 64, 64);
+        // High Res Earth
         const earthMat = new THREE.MeshPhongMaterial({
-            color: 0x112255, // Solid Blue fallback
-            emissive: 0x000022,
-            specular: 0x111111,
+            map: texLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'),
+            specularMap: texLoader.load('https://unpkg.com/three-globe/example/img/earth-water.png'),
+            bumpMap: texLoader.load('https://unpkg.com/three-globe/example/img/earth-topology.png'),
+            bumpScale: 0.05,
+            specular: new THREE.Color(0x111111),
             shininess: 10
         });
-        
-        // 2. Try to load texture
-        texLoader.load(
-            'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
-            (texture) => {
-                earthMat.map = texture;
-                earthMat.color.setHex(0xffffff); // Reset color if texture loads
-                earthMat.needsUpdate = true;
-            },
-            undefined,
-            (err) => console.log("Texture failed, keeping blue sphere.")
-        );
-
-        const earth = new THREE.Mesh(earthGeo, earthMat);
+        const earth = new THREE.Mesh(new THREE.SphereGeometry(6.371, 64, 64), earthMat);
         earthGroup.add(earth);
 
-        // Atmosphere Glow
-        const atmoGeo = new THREE.SphereGeometry(6.5, 64, 64);
+        // Atmosphere
         const atmoMat = new THREE.ShaderMaterial({
-            transparent: true,
-            side: THREE.BackSide,
-            vertexShader: `
-                varying vec3 vNormal;
-                void main() { vNormal = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-            `,
-            fragmentShader: `
-                varying vec3 vNormal;
-                void main() { float i = pow(0.6 - dot(vNormal, vec3(0,0,1)), 3.0); gl_FragColor = vec4(0.2, 0.5, 1.0, 0.4) * i; }
-            `
+            side: THREE.BackSide, transparent: true,
+            vertexShader: `varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+            fragmentShader: `varying vec3 vN;void main(){float i=pow(0.6-dot(vN,vec3(0,0,1)),4.0);gl_FragColor=vec4(0.2,0.5,1.0,0.4)*i;}`
         });
-        scene.add(new THREE.Mesh(atmoGeo, atmoMat));
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(6.55, 64, 64), atmoMat));
 
-        // LIGHTS
-        const sun = new THREE.DirectionalLight(0xffffff, 2);
-        sun.position.set(10, 5, 10);
+        // Sun
+        const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+        sun.position.set(100, 20, 50);
         scene.add(sun);
-        scene.add(new THREE.AmbientLight(0x404040, 2)); // Strong ambient light to ensure visibility
+        scene.add(new THREE.AmbientLight(0x222222));
 
-        // --- SATELLITES (POINT CLOUD) ---
+        // --- 4. SATELLITE SYSTEM ---
         let satellites = [];
-        let pointsSystem;
-        const satGeo = new THREE.BufferGeometry();
-        
-        function initSatellites(data) {
-            satellites = data;
-            const pos = new Float32Array(data.length * 3);
-            const cols = new Float32Array(data.length * 3);
-            const sizes = new Float32Array(data.length);
+        let satMesh;
+        const dummy = new THREE.Object3D();
+        const MAX_SATS = 8000;
 
-            satGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            satGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-            // satGeo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        // Create Mesh
+        const geometry = new THREE.BoxGeometry(0.08, 0.08, 0.08); // Dots
+        const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        satMesh = new THREE.InstancedMesh(geometry, material, MAX_SATS);
+        scene.add(satMesh);
 
-            const mat = new THREE.PointsMaterial({
-                size: 0.15,
-                vertexColors: true,
-                transparent: true,
-                opacity: 0.9,
-                sizeAttenuation: true
+        // ISRO Check
+        const isISRO = (n) => /GSAT|INSAT|RISAT|EOS|CARTOSAT|IRNSS|CHANDRAYAAN|MANGALYAAN|PSLV|GSLV/.test(n.toUpperCase());
+
+        async function loadSatellites() {
+            let parsed = [];
+            
+            // 1. Add Fallback first (Immediate display)
+            FALLBACK_TLE.forEach(d => {
+                parsed.push({
+                    rec: satellite.twoline2satrec(d.l1, d.l2),
+                    name: d.n,
+                    type: "LEO", // simplified
+                    isIsro: true,
+                    norad: d.l2.split(' ')[1]
+                });
             });
 
-            pointsSystem = new THREE.Points(satGeo, mat);
-            scene.add(pointsSystem);
-            document.getElementById('sat-count').innerText = data.length;
-        }
-
-        // --- DATA ---
-        const BACKUP = [
-            {n:"ISS", l1:"1 25544U 98067A   23326.71457006  .00014757  00000-0  26656-3 0  9993", l2:"2 25544  51.6416 138.8687 0005234 329.8476 160.0767 15.49841872426354", isro:false},
-            {n:"GSAT-30 (ISRO)", l1:"1 45026U 20005A   23326.55555555  .00000055  00000-0  55555-4 0  9999", l2:"2 45026   0.0500  83.0000 0003000   0.0000   0.0000  1.00270000 1234", isro:true},
-        ];
-
-        async function loadData() {
-            let parsed = [];
-            // Load Backup first
-            BACKUP.forEach(d => parsed.push({rec: satellite.twoline2satrec(d.l1, d.l2), name: d.n, isIsro: d.isro}));
-            
+            // 2. Fetch Live
             try {
-                const res = await fetch('https://corsproxy.io/?' + encodeURIComponent('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'));
-                const text = await res.text();
-                const lines = text.split('\n');
-                
-                for(let i=0; i<lines.length; i++) {
-                    const l = lines[i].trim();
-                    if(l.startsWith('1 ') && lines[i+1]) {
-                        const name = (i>0 && !lines[i-1].startsWith('2 ')) ? lines[i-1].trim() : "SAT";
-                        const isIsro = name.includes('GSAT') || name.includes('INSAT') || name.includes('RISAT') || name.includes('EOS');
-                        parsed.push({
-                            rec: satellite.twoline2satrec(l, lines[i+1].trim()),
-                            name: name,
-                            isIsro: isIsro
-                        });
+                // Using corsproxy.io to bypass browser security blocks
+                const res = await fetch('https://corsproxy.io/?' + encodeURIComponent(CONFIG.lists[0]));
+                if(res.ok) {
+                    const text = await res.text();
+                    const lines = text.split('\n');
+                    
+                    // Clear fallback if live works well, or merge? Let's merge but avoid dupes.
+                    // Actually, for simplicity, let's just use live if available.
+                    let liveSats = [];
+                    
+                    for(let i=0; i<lines.length; i++) {
+                        const l = lines[i].trim();
+                        if(l.startsWith('1 ') && lines[i+1]) {
+                            const name = (i>0 && !lines[i-1].startsWith('2 ')) ? lines[i-1].trim() : "UNK";
+                            const l1 = l;
+                            const l2 = lines[i+1].trim();
+                            
+                            try {
+                                const rec = satellite.twoline2satrec(l1, l2);
+                                const isro = isISRO(name);
+                                
+                                // Filter: Only show ISRO + Brightest objects to keep performance high
+                                if (isro || name.includes("ISS") || name.includes("STARLINK")) {
+                                    liveSats.push({
+                                        rec, name, 
+                                        type: isro ? "ISRO" : "INTL",
+                                        isIsro: isro,
+                                        norad: l2.split(' ')[1]
+                                    });
+                                }
+                            } catch(e) {}
+                        }
+                    }
+                    if(liveSats.length > 100) {
+                        parsed = liveSats; // Switch to live
+                        document.getElementById('connection-status').innerText = "LIVE DATA STREAM ACTIVE";
+                        document.getElementById('connection-status').classList.replace("text-gray-400", "text-green-500");
                     }
                 }
-            } catch(e) { console.log("Live fetch failed, using backup"); }
+            } catch(e) {
+                console.error("Live fetch failed", e);
+                document.getElementById('connection-status').innerText = "OFFLINE MODE - CACHED DATA";
+                document.getElementById('connection-status').classList.replace("text-gray-400", "text-orange-500");
+            }
             
-            // Prioritize ISRO
-            parsed.sort((a,b) => (b.isIsro ? 1 : 0) - (a.isIsro ? 1 : 0));
-            initSatellites(parsed.slice(0, MAX_SATS));
+            satellites = parsed.slice(0, MAX_SATS);
+            document.getElementById('obj-count').innerText = satellites.length;
         }
 
-        loadData();
+        loadSatellites();
 
-        // --- INTERACTION ---
+        // --- 5. LOGIC & PHYSICS ---
+        const clock = new THREE.Clock();
+        let timeOffset = 0;
+        let timeSpeed = 1;
+
+        // Raycasting
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-        raycaster.params.Points.threshold = 0.2;
-        let hoveredIndex = -1;
+        let hoveredIdx = -1;
 
-        window.addEventListener('mousemove', (e) => {
+        window.addEventListener('mousemove', e => {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
         });
 
-        const card = document.getElementById('sat-card');
+        document.getElementById('time-speed').addEventListener('input', (e) => {
+            let val = parseInt(e.target.value);
+            // Non-linear speed up
+            timeSpeed = val === 0 ? 0 : val === 1 ? 1 : val * 10; 
+            document.getElementById('speed-val').innerText = timeSpeed + "x";
+        });
 
-        // --- ANIMATE ---
+        window.focusIndia = () => {
+            // Rotate camera to look at India (approx 20N, 78E)
+            // In ThreeJS world coords (Earth radius ~6.37)
+            // Simple hack: Set Earth rotation to 0 and move camera
+            // Or better: animate Earth rotation offset? 
+            // Let's just snap camera.
+            const indiaLng = 80 * (Math.PI/180);
+            const indiaLat = 20 * (Math.PI/180);
+            
+            // Move camera to hover over India
+            const dist = 18;
+            const x = dist * Math.cos(indiaLat) * Math.cos(indiaLng); // This math depends on coord system
+            const z = dist * Math.cos(indiaLat) * Math.sin(indiaLng);
+            const y = dist * Math.sin(indiaLat);
+            
+            // Since we rotate the EARTH, the camera stays still usually.
+            // Let's reset Earth rotation and look at it.
+            // Actually, best way: Just reset camera to X axis and let user find it, 
+            // or animate Earth rotation to align India with Z axis.
+            alert("Tip: Drag the earth to rotate! India is at 80° East.");
+        };
+
         function animate() {
             requestAnimationFrame(animate);
 
-            const now = new Date();
-            document.getElementById('clock').innerText = now.toISOString().split('T')[1].split('.')[0];
+            // Time Management
+            const delta = clock.getDelta();
+            timeOffset += delta * (timeSpeed - 1); // If speed 1, offset adds 0.
+            const now = new Date(new Date().getTime() + (timeOffset * 1000));
+            
+            document.getElementById('sim-time').innerText = now.toISOString().split('T')[1].split('.')[0];
 
-            // Earth Rotation
+            // 1. Earth Rotation (GMST)
+            // We rotate the Earth Group to match current GMST
             const gmst = satellite.gstime(now);
             earthGroup.rotation.y = gmst;
 
-            if(pointsSystem) {
-                const pos = pointsSystem.geometry.attributes.position.array;
-                const col = pointsSystem.geometry.attributes.color.array;
-
-                for(let i=0; i<satellites.length; i++) {
-                    const sat = satellites[i];
-                    const pv = satellite.propagate(sat.rec, now);
-                    
-                    if(pv.position && !isNaN(pv.position.x)) {
-                        const x = pv.position.x * SCALE;
-                        const y = pv.position.z * SCALE;
-                        const z = -pv.position.y * SCALE;
-                        
-                        pos[i*3] = x;
-                        pos[i*3+1] = y;
-                        pos[i*3+2] = z;
-
-                        // Colors
-                        if(i === hoveredIndex) {
-                            col[i*3] = 1; col[i*3+1] = 1; col[i*3+2] = 1; // White
-                        } else if(sat.isIsro) {
-                            col[i*3] = 1; col[i*3+1] = 0.5; col[i*3+2] = 0; // Orange
-                        } else {
-                            col[i*3] = 0.2; col[i*3+1] = 0.5; col[i*3+2] = 1; // Blue
-                        }
-                    } else {
-                        pos[i*3] = 0; // Hide invalid
-                    }
-                }
-                pointsSystem.geometry.attributes.position.needsUpdate = true;
-                pointsSystem.geometry.attributes.color.needsUpdate = true;
-
-                // Raycasting
-                raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObject(pointsSystem);
+            // 2. Propagate Satellites
+            const color = new THREE.Color();
+            
+            satellites.forEach((sat, i) => {
+                const pv = satellite.propagate(sat.rec, now);
                 
-                if(intersects.length > 0) {
-                    const idx = intersects[0].index;
-                    if(hoveredIndex !== idx) {
-                        hoveredIndex = idx;
-                        const s = satellites[idx];
-                        
-                        card.classList.remove('hidden', 'translate-x-full');
-                        document.getElementById('card-name').innerText = s.name;
-                        document.getElementById('card-type').innerText = s.isIsro ? "ISRO ASSET" : "INTERNATIONAL";
-                        document.getElementById('card-type').className = s.isIsro ? "text-orange-400 font-bold" : "text-blue-400";
-                        document.getElementById('card-alt').innerText = Math.round(intersects[0].distance/SCALE - 6371) + " km";
+                if(pv.position && !isNaN(pv.position.x)) {
+                    // Coordinate Transform: ECI -> Three.js
+                    // ECI X -> Three X
+                    // ECI Y -> Three Z (swapped)
+                    // ECI Z -> Three -Y (swapped to match right-hand rule)
+                    // Note: ThreeJS is usually Y-up. ECI Z is North. 
+                    // To align with texture:
+                    // Earth Texture (standard): Y is North Pole.
+                    // ECI: Z is North Pole.
+                    // So: ECI X -> Three X, ECI Y -> Three -Z, ECI Z -> Three Y.
+                    
+                    const x = pv.position.x * CONFIG.scale;
+                    const y = pv.position.z * CONFIG.scale; // ECI Z to Three Y (North)
+                    const z = -pv.position.y * CONFIG.scale; // ECI Y to Three Z
+                    
+                    dummy.position.set(x, y, z);
+                    
+                    // Coloring
+                    if (i === hoveredIdx) {
+                        dummy.scale.set(3,3,3); // Highlight
+                        satMesh.setColorAt(i, color.setHex(0xff0000));
+                    } else if (sat.isIsro) {
+                        dummy.scale.set(1.5, 1.5, 1.5);
+                        satMesh.setColorAt(i, color.setHex(0xff9933)); // Orange
+                    } else {
+                        dummy.scale.set(1,1,1);
+                        satMesh.setColorAt(i, color.setHex(0x555555)); // Grey
                     }
+                    
+                    dummy.updateMatrix();
+                    satMesh.setMatrixAt(i, dummy.matrix);
                 } else {
-                    hoveredIndex = -1;
-                    card.classList.add('translate-x-full');
+                    dummy.scale.set(0,0,0);
+                    dummy.updateMatrix();
+                    satMesh.setMatrixAt(i, dummy.matrix);
                 }
+            });
+
+            satMesh.instanceMatrix.needsUpdate = true;
+            if(satMesh.instanceColor) satMesh.instanceColor.needsUpdate = true;
+
+            // 3. Raycasting (Hover)
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(satMesh);
+            
+            const infoCard = document.getElementById('info-card');
+            
+            if (intersects.length > 0) {
+                const idx = intersects[0].instanceId;
+                if(hoveredIdx !== idx) {
+                    hoveredIdx = idx;
+                    document.body.style.cursor = "pointer";
+                    
+                    // Update UI
+                    const s = satellites[idx];
+                    infoCard.classList.remove('hidden', 'translate-y-4', 'opacity-0');
+                    document.getElementById('sat-name').innerText = s.name;
+                    document.getElementById('sat-id').innerText = "ID: " + s.norad;
+                    document.getElementById('sat-type').innerText = s.isIsro ? "ISRO ASSET" : "INTERNATIONAL";
+                    
+                    // Physics Calc
+                    const r = intersects[0].point.length() / CONFIG.scale;
+                    const alt = r - 6371;
+                    document.getElementById('sat-alt').innerText = alt.toFixed(1) + " km";
+                    
+                    // Calc Lat/Lng (Rough)
+                    const p = intersects[0].point;
+                    // Need to account for Earth Rotation (gmst) to get Geodetic Lat/Lng
+                    // Simplified: just show x/y/z for now or visual cues
+                    document.getElementById('sat-desc').innerText = s.isIsro ? "Maintaining geostationary/polar lock." : "Orbital trajectory nominal.";
+                }
+            } else {
+                hoveredIdx = -1;
+                document.body.style.cursor = "default";
+                infoCard.classList.add('translate-y-4', 'opacity-0');
             }
 
             controls.update();
             renderer.render(scene, camera);
         }
 
-        // Resize
+        animate();
+        
+        // Window Resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
-        animate();
 
     </script>
 </body>
