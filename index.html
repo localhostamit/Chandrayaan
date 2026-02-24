@@ -413,7 +413,14 @@
         function withTimeout(url, timeout = 12000) {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeout);
-            return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+            return fetch(url, { signal: controller.signal })
+                .catch((err) => {
+                    if (err?.name === 'AbortError') {
+                        throw new Error(`Request timed out after ${timeout}ms`);
+                    }
+                    throw err;
+                })
+                .finally(() => clearTimeout(timer));
         }
 
         function parseTle(text, cap = 3000) {
@@ -473,8 +480,7 @@
                         break;
                     }
                 } catch (err) {
-                    const reason = err?.name === 'AbortError' ? 'timed out' : 'unavailable';
-                    setStatus(`Feed ${i + 1} ${reason}, trying fallback...`);
+                    setStatus(`Feed ${i + 1} failed (${err?.message || 'unavailable'}), trying fallback...`);
                 }
             }
 
@@ -708,7 +714,6 @@
                 if (i === selectedInstance) {
                     const geo = satellite.eciToGeodetic(pv.position, gmst);
                     updateTelemetry(sat, geo, pv.velocity);
-                    trailKeySeed += `:${sat.position.x.toFixed(2)}:${sat.position.y.toFixed(2)}:${sat.position.z.toFixed(2)}`;
                 }
             }
 
