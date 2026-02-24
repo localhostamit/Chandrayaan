@@ -123,7 +123,7 @@
                         <i class="fa-solid fa-satellite"></i>
                     </div>
                     <div class="min-w-0">
-                        <div class="text-[10px] uppercase tracking-[0.2em] text-sky-200/80 font-semibold">Realtime Space Domain Awareness</div>
+                        <div class="text-[10px] uppercase tracking-[0.2em] text-sky-200/80 font-semibold">Real-time Space Domain Awareness</div>
                         <div class="text-lg md:text-xl font-bold leading-none">Orbital Command <span class="text-cyan-300">Premium</span></div>
                     </div>
                 </div>
@@ -231,6 +231,9 @@
             maxTrails: 12,
             trailSamples: 120,
             trailStepMinutes: 2,
+            fallbackCap: 500,
+            liveCap: 4500,
+            trailRebuildMs: 1200,
             urls: [
                 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle',
                 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'),
@@ -386,7 +389,8 @@
             filters: new Set(['active']),
             timeOffsetMinutes: 0,
             cameraTween: null,
-            lastTrailKey: ''
+            lastTrailKey: '',
+            lastTrailRebuildAt: 0
         };
 
         const isISRO = (n) => /GSAT|INSAT|RISAT|EOS|CARTOSAT|IRNSS|CHANDRAYAAN|ADITYA/.test(n.toUpperCase());
@@ -415,6 +419,7 @@
         function parseTle(text, cap = 3000) {
             const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
             const sats = [];
+            let parseErrors = 0;
             for (let i = 0; i < lines.length - 1; i++) {
                 if (!lines[i].startsWith('1 ') || !lines[i + 1]?.startsWith('2 ')) continue;
                 const line1 = lines[i];
@@ -437,7 +442,12 @@
                         instance: -1
                     });
                     if (sats.length >= cap) break;
-                } catch (e) {}
+                } catch (e) {
+                    parseErrors++;
+                }
+            }
+            if (parseErrors) {
+                console.warn(`Skipped ${parseErrors} malformed TLE records`);
             }
             return sats;
         }
@@ -445,7 +455,7 @@
         async function loadSatellites() {
             updateLoading(0.12, 'Loading fallback constellations');
             const fallbackText = FAILSAFE_DB.map(d => `${d.n}\n${d.l1}\n${d.l2}`).join('\n');
-            let sats = parseTle(fallbackText, 500);
+            let sats = parseTle(fallbackText, CONFIG.fallbackCap);
 
             updateLoading(0.3, 'Establishing Celestrak uplinks');
             for (let i = 0; i < CONFIG.urls.length; i++) {
@@ -455,7 +465,7 @@
                     const response = await withTimeout(url, 12000);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const text = await response.text();
-                    const live = parseTle(text, 4500);
+                    const live = parseTle(text, CONFIG.liveCap);
                     if (live.length > 150) {
                         sats = live;
                         updateLoading(0.74 + (i / CONFIG.urls.length) * 0.18, `Live feed online (${live.length} assets)`);
@@ -463,7 +473,8 @@
                         break;
                     }
                 } catch (err) {
-                    setStatus(`Feed ${i + 1} unavailable, trying fallback...`);
+                    const reason = err?.name === 'AbortError' ? 'timed out' : 'unavailable';
+                    setStatus(`Feed ${i + 1} ${reason}, trying fallback...`);
                 }
             }
 
@@ -605,6 +616,7 @@
         }
 
         function rebuildTrails() {
+            state.lastTrailRebuildAt = performance.now();
             while (trailGroup.children.length) trailGroup.remove(trailGroup.children[0]);
 
             const targets = [];
@@ -701,7 +713,8 @@
             }
 
             satMesh.instanceMatrix.needsUpdate = true;
-            if (trailKeySeed !== state.lastTrailKey) {
+            const now = performance.now();
+            if (trailKeySeed !== state.lastTrailKey || now - state.lastTrailRebuildAt > CONFIG.trailRebuildMs) {
                 state.lastTrailKey = trailKeySeed;
                 rebuildTrails();
             }
